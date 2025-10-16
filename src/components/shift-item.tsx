@@ -1,33 +1,77 @@
+import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { ShiftItemType } from '../stores/shifts-store';
 
 interface ShiftItemProps {
     item: ShiftItemType;
-    onPress?: () => void;
+    onPress: (item: ShiftItemType) => void;
 }
 
 export const ShiftItem = ({ item, onPress }: ShiftItemProps) => {
-    const isFullyStaffed = item.currentWorkers >= item.planWorkers;
-    const availableSpots = item.planWorkers - item.currentWorkers;
-    const totalPrice = item.priceWorker + item.bonusPriceWorker;
+    const handlePress = useCallback(() => {
+        onPress(item);
+    }, [item, onPress]);
 
-    const getStatusStyle = () => {
-        if (isFullyStaffed) return styles.fullyStaffed;
-        if (item.isPromotionEnabled) return styles.promotion;
-        return styles.available;
-    };
+    const {
+        isFullyStaffed,
+        availableSpots,
+        totalPrice,
+        statusStyle,
+        statusText,
+        formattedWorkTypes,
+    } = useMemo(() => {
+        const fullyStaffed = item.currentWorkers >= item.planWorkers;
+        const spots = item.planWorkers - item.currentWorkers;
+        const total = item.priceWorker + item.bonusPriceWorker;
 
-    const getStatusText = () => {
-        if (isFullyStaffed) return 'Fully Staffed';
-        if (item.isPromotionEnabled) return 'Promotion';
-        return 'Available';
-    };
+        const getStatusStyle = () => {
+            if (fullyStaffed) return styles.fullyStaffed;
+            if (item.isPromotionEnabled) return styles.promotion;
+            return styles.available;
+        };
 
-    const formatWorkTypes = () => {
-        return item.workTypes.map(workType => workType.name).join(', ');
-    };
+        const getStatusText = () => {
+            if (fullyStaffed) return 'Fully Staffed';
+            if (item.isPromotionEnabled) return 'Promotion';
+            return 'Available';
+        };
 
-    const renderRating = () => {
+        const formatWorkTypes = () => {
+            return item.workTypes.map(workType => workType.name).join(', ');
+        };
+
+        return {
+            isFullyStaffed: fullyStaffed,
+            availableSpots: spots,
+            totalPrice: total,
+            statusStyle: getStatusStyle(),
+            statusText: getStatusText(),
+            formattedWorkTypes: formatWorkTypes(),
+        };
+    }, [item]);
+
+    const renderLogo = useMemo(() => {
+        if (item.logo) {
+            return (
+                <Image
+                    source={{ uri: item.logo }}
+                    style={styles.logo}
+                    resizeMode="cover"
+                    defaultSource={require('../assets/placeholder.png')} // Fallback image
+                />
+            );
+        }
+
+        return (
+            <View style={[styles.logo, styles.logoPlaceholder]}>
+                <Text style={styles.logoText}>
+                    {item.companyName?.charAt(0) || 'C'}
+                </Text>
+            </View>
+        );
+    }, [item.logo, item.companyName]);
+
+    const renderRating = useMemo(() => {
         if (!item.customerRating) return null;
 
         return (
@@ -38,45 +82,71 @@ export const ShiftItem = ({ item, onPress }: ShiftItemProps) => {
                 </Text>
             </View>
         );
-    };
+    }, [item.customerRating, item.customerFeedbacksCount]);
+
+    const renderStaffingInfo = useMemo(() => {
+        if (isFullyStaffed) {
+            return (
+                <View style={styles.staffingItem}>
+                    <Text style={styles.staffingLabel}>Staffed</Text>
+                    <Text style={styles.staffingValue}>
+                        {item.currentWorkers}/{item.planWorkers}
+                    </Text>
+                </View>
+            );
+        }
+
+        return (
+            <>
+                <View style={styles.staffingItem}>
+                    <Text style={styles.staffingLabel}>Available</Text>
+                    <Text style={styles.staffingValue}>
+                        {availableSpots}/{item.planWorkers}
+                    </Text>
+                </View>
+                <View style={styles.availableSpots}>
+                    <Text style={styles.availableSpotsText}>
+                        {availableSpots} spot{availableSpots !== 1 ? 's' : ''}
+                    </Text>
+                </View>
+            </>
+        );
+    }, [isFullyStaffed, availableSpots, item.planWorkers, item.currentWorkers]);
 
     return (
         <TouchableOpacity
-            style={[styles.container, getStatusStyle()]}
+            style={[styles.container, statusStyle]}
             activeOpacity={0.7}
-            onPress={onPress}
+            onPress={handlePress}
+            accessibilityLabel={`Shift at ${item.companyName}`}
+            accessibilityRole="button"
         >
-            {/* Header with company info */}
             <View style={styles.header}>
                 <View style={styles.companyInfo}>
-                    {item.logo ? (
-                        <Image
-                            source={{ uri: item.logo }}
-                            style={styles.logo}
-                        />
-                    ) : (
-                        <View style={[styles.logo, styles.logoPlaceholder]}>
-                            <Text style={styles.logoText}>
-                                {item.companyName?.charAt(0) || 'C'}
-                            </Text>
-                        </View>
-                    )}
+                    {renderLogo}
                     <View style={styles.companyText}>
-                        <Text style={styles.companyName} numberOfLines={1}>
+                        <Text
+                            style={styles.companyName}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                        >
                             {item.companyName}
                         </Text>
-                        <Text style={styles.address} numberOfLines={1}>
+                        <Text
+                            style={styles.address}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                        >
                             {item.address}
                         </Text>
                     </View>
                 </View>
 
-                <View style={[styles.statusBadge, getStatusStyle()]}>
-                    <Text style={styles.statusText}>{getStatusText()}</Text>
+                <View style={[styles.statusBadge, statusStyle]}>
+                    <Text style={styles.statusText}>{statusText}</Text>
                 </View>
             </View>
 
-            {/* Date and Time */}
             <View style={styles.datetimeContainer}>
                 <Text style={styles.date}>{item.dateStartByCity}</Text>
                 <View style={styles.timeContainer}>
@@ -86,39 +156,19 @@ export const ShiftItem = ({ item, onPress }: ShiftItemProps) => {
                 </View>
             </View>
 
-            {/* Work Types */}
             <View style={styles.workTypesContainer}>
-                <Text style={styles.workTypesText} numberOfLines={2}>
-                    {formatWorkTypes()}
+                <Text
+                    style={styles.workTypesText}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                >
+                    {formattedWorkTypes}
                 </Text>
             </View>
 
-            {/* Staffing and Price Info */}
             <View style={styles.infoContainer}>
                 <View style={styles.staffingContainer}>
-                    <View style={styles.staffingItem}>
-                        <Text style={styles.staffingLabel}>Current</Text>
-                        <Text style={styles.staffingValue}>
-                            {item.currentWorkers}
-                        </Text>
-                    </View>
-                    <View style={styles.staffingSeparator}>
-                        <Text style={styles.staffingSeparatorText}>/</Text>
-                    </View>
-                    <View style={styles.staffingItem}>
-                        <Text style={styles.staffingLabel}>Required</Text>
-                        <Text style={styles.staffingValue}>
-                            {item.planWorkers}
-                        </Text>
-                    </View>
-                    {!isFullyStaffed && (
-                        <View style={styles.availableSpots}>
-                            <Text style={styles.availableSpotsText}>
-                                {availableSpots} spot
-                                {availableSpots !== 1 ? 's' : ''} left
-                            </Text>
-                        </View>
-                    )}
+                    {renderStaffingInfo}
                 </View>
 
                 <View style={styles.priceContainer}>
@@ -127,17 +177,15 @@ export const ShiftItem = ({ item, onPress }: ShiftItemProps) => {
                         <Text style={styles.price}>${totalPrice}</Text>
                         {item.bonusPriceWorker > 0 && (
                             <Text style={styles.bonusPrice}>
-                                +${item.bonusPriceWorker} bonus
+                                +${item.bonusPriceWorker}
                             </Text>
                         )}
                     </View>
-                    <Text style={styles.priceSubtext}>per worker</Text>
                 </View>
             </View>
 
-            {/* Footer with rating and action */}
             <View style={styles.footer}>
-                {renderRating()}
+                {renderRating}
 
                 {!isFullyStaffed && (
                     <TouchableOpacity
@@ -145,11 +193,12 @@ export const ShiftItem = ({ item, onPress }: ShiftItemProps) => {
                             styles.bookButton,
                             item.isPromotionEnabled && styles.promotionButton,
                         ]}
+                        onPress={handlePress}
                     >
                         <Text style={styles.bookButtonText}>
                             {item.isPromotionEnabled
                                 ? 'Special Offer'
-                                : 'Book Shift'}
+                                : 'View Details'}
                         </Text>
                     </TouchableOpacity>
                 )}
