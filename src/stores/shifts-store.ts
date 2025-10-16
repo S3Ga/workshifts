@@ -1,3 +1,4 @@
+import Geolocation from '@react-native-community/geolocation';
 import { makeAutoObservable, runInAction } from 'mobx';
 
 export type ShiftItemType = {
@@ -32,6 +33,7 @@ export class ShiftsStore {
     items: ShiftItemType[] = [];
     loading = false;
     error: string | null = null;
+    location: { latitude: number; longitude: number } | null = null;
 
     constructor() {
         makeAutoObservable(this);
@@ -42,8 +44,14 @@ export class ShiftsStore {
         this.setError(null);
 
         try {
+            const location = await this.getCurrentPosition();
+
+            runInAction(() => {
+                this.location = location;
+            });
+
             const response = await fetch(
-                'https://mobile.handswork.pro/api/shifts/map-list-unauthorized?latitude=45.039268&longitude=38.987221',
+                `https://mobile.handswork.pro/api/shifts/map-list-unauthorized?latitude=${location.latitude}&longitude=${location.longitude}`,
             );
 
             if (!response.ok) {
@@ -58,9 +66,15 @@ export class ShiftsStore {
             runInAction(() => {
                 this.items = data.data;
             });
-        } catch {
+        } catch (error) {
             runInAction(() => {
-                this.setError('Failed to fetch shifts');
+                if (error instanceof Error) {
+                    this.error = error.message;
+                } else {
+                    this.error = 'Failed to fetch shifts';
+                }
+
+                console.error('Fetch shifts error:', error);
             });
         } finally {
             runInAction(() => {
@@ -76,5 +90,29 @@ export class ShiftsStore {
 
     private setError(error: string | null) {
         this.error = error;
+    }
+
+    private getCurrentPosition() {
+        return new Promise<{
+            latitude: number;
+            longitude: number;
+        }>((resolve, reject) => {
+            Geolocation.getCurrentPosition(
+                position => {
+                    resolve({
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                    });
+                },
+                error => {
+                    reject(error);
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 10000,
+                },
+            );
+        });
     }
 }

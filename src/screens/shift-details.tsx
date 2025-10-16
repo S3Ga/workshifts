@@ -29,10 +29,6 @@ export const ShiftDetails = observer(({ route }: ShiftDetailsProps) => {
         Linking.openURL(url);
     };
 
-    const handleCall = (phoneNumber: string) => {
-        Linking.openURL(`tel:${phoneNumber}`);
-    };
-
     const formatWorkTypes = () => {
         return shift.workTypes.map(workType => workType.name).join(', ');
     };
